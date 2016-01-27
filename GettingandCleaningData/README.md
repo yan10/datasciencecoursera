@@ -1,7 +1,5 @@
----
-title: "README"
-output: html_document
----
+README
+===========
 
 This is the final project for Getting and Cleaning Data course. Files included are:
 
