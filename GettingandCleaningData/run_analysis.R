@@ -36,4 +36,7 @@ data <- data[,c('activity', 'subject', grep('mean', colnames(data), value = TRUE
 data2 <- group_by(data, activity, subject)
 data2 <- summarise_each(data2, funs(mean))
 
+##codebook <- data.frame(colnames(data2))
+##write.table(codebook, file = 'codebook.txt', row.names = FALSE, col.names = FALSE, quote = FALSE)
+
 write.table(data2, file = 'tidyData.txt', row.names = FALSE)
