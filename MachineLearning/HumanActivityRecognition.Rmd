@@ -1,0 +1,224 @@
+---
+title: "Human Activity Recognition"
+author: "Yan Wang"
+date: "February 29, 2016"
+output: 
+  html_document:
+    keep_md: true
+---
+# Introduction to the project
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+### Goal
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+### Data Sources
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+
+# Model Building Process
+
+### Reproducibility
+
+An overall pseudo-random number generator seed was set at 12345 for all code. In order to reproduce the results below, the same seed should be used.
+
+Different packages were downloaded and installed, such as caret and randomForest. These should also be installed in order to reproduce the results below.
+
+```{r, global_options, echo = TRUE, warning=FALSE}
+rm(list=ls())
+library(caret)
+library(corrplot)
+library(randomForest)
+library(kernlab)
+library(nnet)
+library(ggplot2)
+##library(arm)
+set.seed(12345)
+```
+
+### Preprocessing
+
+#### Getting Data
+
+```{r}
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+trainFile <- "./data/pml-training.csv"
+testFile  <- "./data/pml-testing.csv"
+
+if (!file.exists("./data")) {
+        dir.create("./data")
+}
+if (!file.exists(trainFile)) {
+        download.file(trainUrl, destfile=trainFile)
+}
+if (!file.exists(testFile)) {
+        download.file(testUrl, destfile=testFile)
+}
+
+train <- read.csv("./data/pml-training.csv")
+test  <- read.csv("./data/pml-testing.csv")
+```
+
+#### Cleaning Data
+
+First look at the distribution of the manners in the training dataset.
+
+```{r}
+qplot(train$classe, main = 'Distribution of the manners')
+ggsave('plot1.png')
+
+## Cleaning columns with all NA's and turns out no all NA columns in the training data set
+indexNA <- sapply(train, function(x)all(is.na(x)))
+##table(indexNA)
+```
+
+#### Zero- and Near Zero-Variance Predictors
+
+Use nearZeroVar function in caret package to diagnoses predictors that have one unique value (i.e. are zero variance predictors) or predictors that are have both of the following characteristics: they have very few unique values relative to the number of samples and the ratio of the frequency of the most common value to the frequency of the second most common value is large.
+
+```{r}
+nearzero <- nearZeroVar(train, saveMetrics = TRUE)
+##table(nearzero$zeroVar)
+##table(nearzero$nzv)
+## Get rid of columns of nearZeroVar 
+train <- train[, !nearzero$nzv]
+```
+
+Select variables with high (over 90%) missing data and exclude them from the analysis
+
+```{r}
+indexMissingData <- sapply(colnames(train), function(x) if(sum(is.na(train[, x])) > 0.90*nrow(train)) {return (TRUE)} else {return (FALSE)} )
+##table(indexMissingData)
+train <- train[, !indexMissingData]
+```
+
+Columns 1 to 5 are id, participant names and time, have no contribution to predict the manner so get rid of them
+
+```{r}
+train <- train[,-(1:5)]
+```
+
+After cleaning the data the number of predictors is `r ncol(train) - 1`.
+
+### Principal Component Analysis
+
+#### Identifying Correlated Predictors
+
+First check if there are predictors with high correlations
+
+```{r}
+correlationMatrix <- cor(train[,-54])
+png(height=1200, width=1200, pointsize=25, file="plot2.png")
+corrplot::corrplot(correlationMatrix, method = "circle")
+dev.off()
+highCorr <- sum(abs(correlationMatrix[upper.tri(correlationMatrix)]) > 0.9)
+```
+
+From the plot we see many of the predictors are highly correlated, and also there are `r highCorr` descriptors that are almost perfectly correlated (|correlation| > 0.9)
+
+#### Standardising Variables
+
+If you want to compare different variables that have different units, are very different variances, it would be a better idea to first standardise the variables so that they all have variance 1 and mean 0, and to then carry out the principal component analysis on the standardised data. This would allow us to find the principal components that provide the best low-dimensional representation of the variation in the original data, without being overly biased by those variables that show the most variance in the original data.
+
+```{r}
+preStandardization <- preProcess(train[,-54], method=c("center","scale"))
+trainFinal <- predict(preStandardization, train[,-54])
+trainFinal <- cbind(trainFinal, classe = train$classe)
+```
+
+#### Perform PCA
+
+```{r}
+pca <- prcomp(trainFinal[,-54])
+summary(pca)
+```
+
+This gives us the standard deviation of each component, and the proportion of variance explained by each component. The standard deviation of the components is stored in a named element called “sdev” of the output variable made by “prcomp”
+
+```{r}
+pca$sdev
+sum((pca$sdev)^2)
+```
+
+The total variance explained by the components is the sum of the variances of the components
+
+```{r}
+sum((pca$sdev)^2)
+```
+
+In order to  explain at least 80% of the variance, we would retain the first 13 principal components, as we can see from the output of “summary(pca)” that the first 13 principal components explain 81.44% of the variance.
+
+```{r}
+## Another way to do PCA is to use preProcess function in caret package
+prePCA <- preProcess(trainFinal[,-54],method="pca",thresh=.8) #13 components are required
+##prePCA$rotation
+trainPCA <- predict(prePCA,trainFinal[,-54])
+trainPCA <- cbind(trainPCA, classe = trainFinal$classe)
+```
+
+### Model Training and Cross Validation
+
+Two classification models are trained: Random forest and a Logistic regression model.
+
+```{r}
+tc <- trainControl(method = "cv", number = 3, verboseIter=FALSE , allowParallel=TRUE)
+
+rf <- train(classe ~ ., data = trainPCA, method = "rf", trControl= tc)
+##svmr <- train(classe ~ ., data = trainPCA, method = "svmRadial", trControl= tc)
+##NN <- train(classe ~ ., data = trainPCA, method = "nnet", trControl= tc, verbose=FALSE)
+##svml <- train(classe ~ ., data = trainPCA, method = "svmLinear", trControl= tc)
+##bayesglm <- train(classe ~ ., data = trainPCA, method = "bayesglm", trControl= tc)
+logitboost <- train(classe ~ ., data = trainPCA, method = "LogitBoost", trControl= tc)
+```
+
+#### Model Selection
+
+```{r}
+print(rf)
+print(logitboost)
+```
+
+For Random Forest model we got model accuracy of `r rf$results$Accuracy[1]`, and kappa score of `r rf$results$Kappa[1]`.
+
+For Logistic regression model we got model accuracy of `r logitboost$results$Accuracy[1]`, and kappa score of `r logitboost$results$Kappa[1]`.
+
+Therefore we choose Random Forest model to predicting test dataset. The expected out-of-sample error will be estimated as 1-accuracy in the cross-validation data which is `r 1 - rf$results$Accuracy[1]`. We acheived this just by inculding 13 principle components.
+
+# Applying the Model
+
+#### Preprocessing on test data
+
+```{r}
+test <- test[, !nearzero$nzv]
+test <- test[, !indexMissingData]
+test <- test[,-(1:5)]
+testFinal <- predict(preStandardization, test[,-54])
+testPCA <- predict(prePCA,testFinal)
+```
+
+#### Predicting on the test data using Random Forest Model
+```{r}
+testResult <- predict(rf, testPCA)
+testResult
+```
+
+We have the final prediction result of `r testResult` for the 20 test cases.
+
+# Reference
+
++ http://little-book-of-r-for-multivariate-analysis.readthedocs.org/en/latest/src/multivariateanalysis.html
+
