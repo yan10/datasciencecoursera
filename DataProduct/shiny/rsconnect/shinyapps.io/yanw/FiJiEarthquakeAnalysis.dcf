@@ -2,8 +2,8 @@ name: FiJiEarthquakeAnalysis
 account: yanw
 server: shinyapps.io
 appId: 86903
-bundleId: 386191
+bundleId: 386225
 url: https://yanw.shinyapps.io/FiJiEarthquakeAnalysis/
-when: 1456975264.13461
+when: 1456978624.35692
 asMultiple: FALSE
 asStatic: FALSE
