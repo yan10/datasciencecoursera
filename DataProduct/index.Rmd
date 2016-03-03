@@ -1,0 +1,72 @@
+---
+title       : Fiji Earthquake Analysis
+subtitle    : Coursera Data Science Project
+author      : Yan Wang
+job         : 
+framework   : io2012        # {io2012, html5slides, shower, dzslides, ...}
+highlighter : highlight.js  # {highlight.js, prettify, highlight}
+hitheme     : tomorrow      # 
+widgets     : []            # {mathjax, quiz, bootstrap}
+mode        : selfcontained # {standalone, draft}
+knit        : slidify::knit2slides
+---
+
+## Instruction
+
+This presentation is part of the Course Project for the Coursera Developing Data Products class. For the first part, a Shiny application is created and deployed on Rstudio's server. For the second part, a reproducible pitch presentation about the application is created using slidify.
+
+The app developed for the first part of the assignment is avalilable at:
+
+https://yanw.shinyapps.io/FiJiEarthquakeAnalysis/
+
+Source code for ui.R and server.R files are available on the GitHub:
+
+https://github.com/yan10/datasciencecoursera/tree/master/DataProduct/shiny
+
+--- .class #id 
+
+## Shiny Application
+
+This Shiny application helps you analyzing the location, depth and magnitude of earthquakes off Fiji, using the quakes dataset from [R]. It is able to filter out earthquakes depanding on criterias you set And visualize different earthquakes on map. 
+
+The data set give the locations of 1000 seismic events of MB > 4.0. The events occurred in a cube near Fiji since 1964.
+
+```{r, echo = FALSE}
+data("quakes")
+head(quakes)
+```
+
+--- .class #id 
+
+## Locations of Earthquakes off Fiji
+
+First, you need to set the minimum threshold of number of stations reporting the earthquakes. These information will be used to filter out earthquakes don't meet the requirement.
+
+Second, you can drag the slider bar to select the range of earthquake depth and earthquake maginitude you want to include.
+
+After you set the criterias, this application will show you a map of Fiji with circles stand for each earthquake, the radius of circle stands for different value. You could choose to see two differenent types of map: OpenStreetMap or MapQuestOpen.Aerial. Also, you could choose to see different types of reported data: Depth or Magnitude or Number of Stations Reporting. Also you could put cursor on the circle and it will give you corresponding information.
+
+--- .class #id 
+
+## Earthquake Map
+
+Here is the code to generate a basic map about Fiji earthquake. The actual applicaton has more features.
+
+```{r, warning=FALSE,comment=FALSE,results='hide',message=FALSE}
+require(leaflet)
+data("quakes")
+map <- leaflet(height = 650, width = 900)
+map <- addTiles(map, group = "OpenStreetMap")
+map <- addCircles(map,
+                  lng = quakes$long,
+                  lat = quakes$lat,
+                  radius = 5 ^ quakes$mag,
+                  popup = paste0('Magnitude: ', quakes$mag),
+                  group = "Magnitude",
+                  fillColor = "green",
+                  fill = TRUE,
+                  stroke = FALSE,
+                  fillOpacity = 0.5
+                  )
+```
+
